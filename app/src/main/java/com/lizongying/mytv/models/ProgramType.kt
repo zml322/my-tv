@@ -4,4 +4,5 @@ enum class ProgramType {
     Y_PROTO,
     Y_JCE,
     F,
+    IPTV,
 }
