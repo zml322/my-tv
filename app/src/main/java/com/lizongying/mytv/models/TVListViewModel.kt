@@ -29,11 +29,11 @@ class TVListViewModel : ViewModel() {
     }
 
     fun getTVViewModel(id: Int): TVViewModel? {
-        return _tvListViewModel.value?.get(id)
+        return _tvListViewModel.value?.getOrNull(id)
     }
 
     fun getTVViewModelCurrent(): TVViewModel? {
-        return _itemPositionCurrent.value?.let { _tvListViewModel.value?.get(it) }
+        return _itemPositionCurrent.value?.let { _tvListViewModel.value?.getOrNull(it) }
     }
 
     fun setItemPosition(position: Int) {

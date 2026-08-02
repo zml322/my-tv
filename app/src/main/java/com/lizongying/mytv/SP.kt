@@ -2,6 +2,7 @@ package com.lizongying.mytv
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.security.MessageDigest
 
 object SP {
     // Name of the sp file TODO Should use a meaningful name and do migrations
@@ -25,6 +26,11 @@ object SP {
 
     // guid
     private const val KEY_GUID = "guid"
+
+    private const val KEY_PREFERRED_SOURCE_PREFIX = "preferred_source_"
+    private const val KEY_STABLE_SOURCE_PREFIX = "stable_source_"
+    private const val KEY_SOURCE_STARTUP_PREFIX = "source_startup_"
+    private const val KEY_SOURCE_FAILURE_PREFIX = "source_failure_"
 
     private lateinit var sp: SharedPreferences
 
@@ -62,4 +68,59 @@ object SP {
     var guid: String
         get() = sp.getString(KEY_GUID, "") ?: ""
         set(value) = sp.edit().putString(KEY_GUID, value).apply()
+
+    fun preferredSource(channelName: String): String =
+        sp.getString(KEY_PREFERRED_SOURCE_PREFIX + channelName, "").orEmpty()
+
+    fun setPreferredSource(channelName: String, source: String) {
+        sp.edit().putString(KEY_PREFERRED_SOURCE_PREFIX + channelName, source).apply()
+    }
+
+    fun stableSource(channelName: String): String =
+        sp.getString(KEY_STABLE_SOURCE_PREFIX + channelName, "").orEmpty()
+
+    fun setStableSource(channelName: String, source: String) {
+        sp.edit()
+            .putString(KEY_STABLE_SOURCE_PREFIX + channelName, source)
+            .putString(KEY_PREFERRED_SOURCE_PREFIX + channelName, source)
+            .apply()
+    }
+
+    fun clearStableSource(channelName: String) {
+        sp.edit().remove(KEY_STABLE_SOURCE_PREFIX + channelName).apply()
+    }
+
+    fun sourceStartupMs(channelName: String, source: String): Long =
+        sp.getLong(sourceMetricKey(KEY_SOURCE_STARTUP_PREFIX, channelName, source), -1L)
+
+    fun sourceFailureCount(channelName: String, source: String): Int =
+        sp.getInt(sourceMetricKey(KEY_SOURCE_FAILURE_PREFIX, channelName, source), 0)
+
+    /** Keep a smoothed first-frame time so a single slow launch does not reorder every source. */
+    fun recordSourceStartup(channelName: String, source: String, elapsedMs: Long) {
+        if (channelName.isBlank() || source.isBlank()) return
+        val startupKey = sourceMetricKey(KEY_SOURCE_STARTUP_PREFIX, channelName, source)
+        val failureKey = sourceMetricKey(KEY_SOURCE_FAILURE_PREFIX, channelName, source)
+        val current = sp.getLong(startupKey, -1L)
+        val sample = elapsedMs.coerceIn(100L, 60_000L)
+        val smoothed = if (current < 0L) sample else (current * 3L + sample) / 4L
+        sp.edit()
+            .putLong(startupKey, smoothed)
+            .putInt(failureKey, 0)
+            .apply()
+    }
+
+    fun recordSourceFailure(channelName: String, source: String) {
+        if (channelName.isBlank() || source.isBlank()) return
+        val key = sourceMetricKey(KEY_SOURCE_FAILURE_PREFIX, channelName, source)
+        sp.edit().putInt(key, (sp.getInt(key, 0) + 1).coerceAtMost(10)).apply()
+    }
+
+    private fun sourceMetricKey(prefix: String, channelName: String, source: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest("${channelName.trim()}|$source".toByteArray(Charsets.UTF_8))
+            .take(12)
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+        return prefix + digest
+    }
 }
