@@ -460,6 +460,12 @@ object Request {
     }
 
     fun fetchData(tvModel: TVViewModel) {
+        // IPTV channels have URLs pre-populated from M3U, no API call needed
+        if (tvModel.getTV().programType == ProgramType.IPTV) {
+            tvModel.allReady()
+            return
+        }
+
         if (tvModel.getTV().channel == "港澳台") {
             fetchFAuth(tvModel)
             return

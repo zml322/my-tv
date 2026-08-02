@@ -257,11 +257,44 @@ class MainFragment : BrowseSupportFragment() {
     }
 
     fun fragmentReady() {
-        tvListViewModel.getTVViewModel(itemPosition)?.changed()
+        // Fetch IPTV sources and populate channel URLs before first play
+        lifecycleScope.launch {
+            try {
+                context?.let { IptvSource.init(it) }
+                val matchedCount = populateIptvUrls()
+                Log.i(TAG, "IPTV sources loaded: ${IptvSource.getAllChannels().size} channels from M3U, $matchedCount matched to local channels")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load IPTV sources: ${e.message}")
+            }
+            tvListViewModel.getTVViewModel(itemPosition)?.changed()
+        }
 
         tvListViewModel.tvListViewModel.value?.forEach { tvViewModel ->
             updateEPG(tvViewModel)
         }
+    }
+
+    private fun populateIptvUrls(): Int {
+        var matched = 0
+        tvListViewModel.tvListViewModel.value?.forEach { tvViewModel ->
+            if (tvViewModel.getTV().programType == ProgramType.IPTV) {
+                val alias = tvViewModel.getTV().alias
+                val name = tvViewModel.getTV().title
+                // Try to find stream URL by alias first, then by title
+                var url = IptvSource.getUrl(alias)
+                if (url == null) {
+                    url = IptvSource.getUrl(name)
+                }
+                if (url != null) {
+                    tvViewModel.addVideoUrl(url)
+                    matched++
+                    Log.d(TAG, "IPTV matched: $name → $url")
+                } else {
+                    Log.w(TAG, "IPTV no match: $name (alias=$alias)")
+                }
+            }
+        }
+        return matched
     }
 
     fun play(itemPosition: Int) {
@@ -310,6 +343,10 @@ class MainFragment : BrowseSupportFragment() {
 
             ProgramType.F -> {
                 Request.fetchFEPG(tvViewModel)
+            }
+
+            ProgramType.IPTV -> {
+                // IPTV sources don't provide EPG data
             }
         }
     }
