@@ -18,7 +18,6 @@ import androidx.leanback.widget.Presenter
 import androidx.leanback.widget.Row
 import androidx.leanback.widget.RowPresenter
 import androidx.lifecycle.lifecycleScope
-import com.lizongying.mytv.api.YSP
 import com.lizongying.mytv.models.ProgramType
 import com.lizongying.mytv.models.TVListViewModel
 import com.lizongying.mytv.models.TVViewModel
@@ -71,8 +70,6 @@ class MainFragment : BrowseSupportFragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-
-        activity?.let { YSP.init(it) }
 
         loadRows()
 
