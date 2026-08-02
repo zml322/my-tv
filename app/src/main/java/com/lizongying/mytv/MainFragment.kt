@@ -260,7 +260,7 @@ class MainFragment : BrowseSupportFragment() {
         // Fetch IPTV sources and populate channel URLs before first play
         lifecycleScope.launch {
             try {
-                context?.let { IptvSource.init(it) }
+                IptvSource.init(requireContext())
                 val matchedCount = populateIptvUrls()
                 Log.i(TAG, "IPTV sources loaded: ${IptvSource.getAllChannels().size} channels from M3U, $matchedCount matched to local channels")
             } catch (e: Exception) {
