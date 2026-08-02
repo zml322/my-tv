@@ -7,6 +7,19 @@ object TVList {
         setup()
     }
 
+    private fun localIptv(title: String, alias: String = title) = TV(
+        title = title,
+        alias = alias,
+        videoUrl = emptyList(),
+        channel = "地方",
+        logo = "",
+        pid = "",
+        sid = "",
+        programType = ProgramType.IPTV,
+        needToken = false,
+        mustToken = false,
+    )
+
     private fun setup(): Map<String, List<TV>> {
         val list = mapOf(
             "央视" to listOf(
@@ -696,6 +709,27 @@ object TVList {
                     needToken = false,
                     mustToken = false
                 ),
+                localIptv("吉林卫视"),
+                localIptv("云南卫视"),
+                localIptv("陕西卫视"),
+                localIptv("山西卫视"),
+                localIptv("甘肃卫视"),
+                localIptv("青海卫视"),
+                localIptv("宁夏卫视"),
+                localIptv("内蒙古卫视"),
+                localIptv("西藏卫视"),
+                localIptv("海峡卫视"),
+                localIptv("厦门卫视"),
+                localIptv("三沙卫视"),
+                localIptv("大湾区卫视"),
+                localIptv("延边卫视"),
+                localIptv("康巴卫视"),
+                localIptv("安多卫视"),
+                localIptv("内蒙古蒙语卫视"),
+                localIptv("农林卫视"),
+                localIptv("山东教育卫视", "山东教育"),
+                localIptv("金鹰卡通"),
+                localIptv("卡酷少儿"),
                 TV(
                     title = "CETV1",
                     alias = "CETV1",
@@ -828,7 +862,7 @@ object TVList {
         var id = 0
         list.forEach { (k, v) ->
             val group = mutableListOf<TV>()
-            v.forEach { v1 ->
+            v.filterNot { it.title in HIDDEN_UNPLAYABLE_CHANNELS }.forEach { v1 ->
                 v1.id = id
                 id++
                 group.add(v1)
@@ -839,4 +873,27 @@ object TVList {
         }
         return listNew
     }
+
+    /** Channels confirmed unavailable or consistently mismatched on the target tablet. */
+    private val HIDDEN_UNPLAYABLE_CHANNELS = setOf(
+        "CCTV4K 超高清",
+        "CCTV8K 超高清",
+        "风云剧场",
+        "第一剧场",
+        "怀旧剧场",
+        "世界地理",
+        "风云音乐",
+        "兵器科技",
+        "风云足球",
+        "高尔夫网球",
+        "女性时尚",
+        "央视文化精品",
+        "央视台球",
+        "电视指南",
+        "卫生健康",
+        "凤凰卫视资讯台",
+        "凤凰卫视中文台",
+        "凤凰卫视香港台",
+        "CETV1",
+    )
 }

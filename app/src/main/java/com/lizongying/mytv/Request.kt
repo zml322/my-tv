@@ -694,7 +694,7 @@ object Request {
         tvModel.seq++
     }
 
-    fun fetchPage() {
+    fun fetchPage(onChannelsUpdated: (() -> Unit)? = null) {
         callPage = yspProtoService.getPage()
         callPage?.enqueue(object : Callback<pageModel.Response> {
             override fun onResponse(
@@ -703,23 +703,29 @@ object Request {
             ) {
                 if (response.isSuccessful) {
                     val body = response.body()
-                    if (body?.data?.feedModuleListCount == 1) {
-                        for (item in body.data?.feedModuleListList!![0]?.dataTvChannelListList!!) {
-                            Log.d(
-                                TAG,
-                                "${item.channelName},${item.pid},${item.streamId}"
+                    val channels = body?.data?.feedModuleListList.orEmpty()
+                        .flatMap { module -> module.dataTvChannelListList }
+                    var changed = 0
+                    for (item in channels) {
+                        if (OfficialLiveSources.updateYangshipinChannel(
+                                item.channelName,
+                                item.pid,
                             )
-
-                            for ((_, v) in TVList.list) {
-                                for (v2 in v) {
-                                    if (v2.title == item.channelName || v2.alias == item.channelName) {
-                                        v2.pid = item.pid
-                                        v2.sid = item.streamId
-                                    }
-                                }
-                            }
+                        ) {
+                            changed++
                         }
+                        Log.i(
+                            TAG,
+                            "YSP_CHANNEL ${item.channelName} | pid=${item.pid} | " +
+                                "vip=${item.isVip} | rights=${item.viewRightsList}",
+                        )
                     }
+                    if (channels.isNotEmpty()) {
+                        Log.i(TAG, "YSP channel page loaded: ${channels.size}, changed=$changed")
+                        onChannelsUpdated?.invoke()
+                    }
+                } else {
+                    Log.w(TAG, "YSP channel page HTTP ${response.code()}; using bundled mapping")
                 }
             }
 

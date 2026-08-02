@@ -23,6 +23,52 @@
         app:resize_mode="fill"
         app:use_controller="false" />
 
+    <!-- Broadcaster-owned pages are shown here when no durable official HLS endpoint exists. -->
+    <WebView
+        android:id="@+id/official_web_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/black"
+        android:visibility="gone" />
+
+    <!-- The WebView stays transparent while loading; this compact hint never intercepts touch. -->
+    <FrameLayout
+        android:id="@+id/official_loading_overlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/official_loading_background"
+        android:clickable="false"
+        android:focusable="false"
+        android:paddingStart="24dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="18dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ProgressBar
+                android:id="@+id/official_loading_progress"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:indeterminate="true" />
+
+            <TextView
+                android:id="@+id/official_loading_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="正在准备官网全屏直播…"
+                android:textColor="#ccffffff"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </FrameLayout>
+
     <!-- Touch control overlay -->
     <FrameLayout
         android:id="@+id/touch_overlay"
@@ -36,6 +82,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_gravity="top"
+            android:elevation="12dp"
             android:gravity="center_vertical"
             android:background="#80000000"
             android:orientation="horizontal"
@@ -52,16 +99,30 @@
                 android:text="CCTV1 综合" />
 
             <TextView
-                android:id="@+id/btn_settings"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:gravity="center"
-                android:text="⚙"
-                android:textColor="@android:color/white"
-                android:textSize="24sp"
+                android:id="@+id/source_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="官网播放器"
+                android:textColor="#ccffffff"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/btn_source"
+                android:layout_width="108dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/source_switch_background"
                 android:clickable="true"
                 android:focusable="true"
-                android:background="?attr/selectableItemBackgroundBorderless" />
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="切换线路"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
         </LinearLayout>
 
         <!-- Center navigation area -->
@@ -132,7 +193,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="◀ 换台 ▶  |  点按菜单  |  双击设置"
+                android:text="上下滑动换台  |  点按中间打开频道  |  右上角查看全部线路"
                 android:textColor="#99ffffff"
                 android:textSize="12sp" />
         </LinearLayout>

@@ -13,6 +13,7 @@ import java.util.Date
 import java.util.Locale
 
 object Utils {
+    @Volatile
     private var between: Long = 0
 
     fun getDateFormat(format: String): String {
@@ -31,13 +32,18 @@ object Utils {
     }
 
     suspend fun init() {
-        var currentTimeMillis: Long = 0
-        try {
-            currentTimeMillis = getTimestampFromServer()
+        val serverTimeMillis = try {
+            getTimestampFromServer()
         } catch (e: Exception) {
-            println("Failed to retrieve timestamp from server: ${e.message}")
+            null
         }
-        between = System.currentTimeMillis() - currentTimeMillis
+        if (serverTimeMillis != null && serverTimeMillis > 0L) {
+            setBetween(serverTimeMillis)
+        } else {
+            // Never treat a failed request as the Unix epoch (08:00 in Asia/Shanghai).
+            // The Android system clock is the reliable offline fallback.
+            between = 0L
+        }
     }
 
     /**

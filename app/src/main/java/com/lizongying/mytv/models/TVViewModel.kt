@@ -24,6 +24,8 @@ class TVViewModel(private var tv: TV) : ViewModel() {
     var tokenFHRetryMaxTimes = 8
 
     var needGetToken = false
+    private var consecutiveSourceFailures = 0
+    private var videoSourceNames: Map<String, String> = emptyMap()
 
     private val _errInfo = MutableLiveData<String>()
     val errInfo: LiveData<String>
@@ -52,6 +54,7 @@ class TVViewModel(private var tv: TV) : ViewModel() {
     var seq = 0
 
     fun addVideoUrl(url: String) {
+        if (url.isBlank() || tv.videoUrl.contains(url)) return
         if (_videoUrl.value?.isNotEmpty() == true) {
             if (_videoUrl.value!!.last().contains("cctv.cn")) {
                 tv.videoUrl = tv.videoUrl.subList(0, tv.videoUrl.lastIndex) + listOf(url)
@@ -63,6 +66,70 @@ class TVViewModel(private var tv: TV) : ViewModel() {
         }
         _videoUrl.value = tv.videoUrl
         _videoIndex.value = tv.videoUrl.lastIndex
+    }
+
+    /** Replace IPTV sources while restoring the last source deliberately selected by the user. */
+    fun replaceVideoUrls(
+        urls: List<String>,
+        preferredUrl: String = "",
+        sourceNames: Map<String, String> = emptyMap(),
+    ) {
+        tv.videoUrl = urls.filter { it.isNotBlank() }.distinct()
+        videoSourceNames = sourceNames.filterKeys(tv.videoUrl::contains)
+        _videoUrl.value = tv.videoUrl
+        val preferredIndex = tv.videoUrl.indexOf(preferredUrl)
+        _videoIndex.value = when {
+            tv.videoUrl.isEmpty() -> -1
+            preferredIndex >= 0 -> preferredIndex
+            else -> 0
+        }
+        consecutiveSourceFailures = 0
+    }
+
+    /** Move to another source automatically, stopping after every source failed once. */
+    fun advanceSourceAfterError(): Boolean {
+        val urls = _videoUrl.value.orEmpty()
+        val current = _videoIndex.value ?: -1
+        if (urls.size <= 1 || current !in urls.indices || consecutiveSourceFailures >= urls.lastIndex) {
+            return false
+        }
+        consecutiveSourceFailures++
+        _videoIndex.value = (current + 1) % urls.size
+        Log.w(TAG, "${tv.title}: source failed, switching to ${_videoIndex.value}")
+        return true
+    }
+
+    /** Manual source switching remains available even after an automatic failure round. */
+    fun cycleSource(): Boolean {
+        val urls = _videoUrl.value.orEmpty()
+        val current = _videoIndex.value ?: -1
+        if (urls.size <= 1 || current !in urls.indices) return false
+        _videoIndex.value = (current + 1) % urls.size
+        consecutiveSourceFailures = 0
+        changed()
+        return true
+    }
+
+    fun selectSource(index: Int): Boolean {
+        val urls = _videoUrl.value.orEmpty()
+        if (index !in urls.indices) return false
+        _videoIndex.value = index
+        consecutiveSourceFailures = 0
+        changed()
+        return true
+    }
+
+    /** Select a remembered route without starting playback until the channel change is emitted. */
+    fun prepareSource(source: String): Boolean {
+        val index = _videoUrl.value.orEmpty().indexOf(source)
+        if (index < 0) return false
+        _videoIndex.value = index
+        consecutiveSourceFailures = 0
+        return true
+    }
+
+    fun markSourcePlaying() {
+        consecutiveSourceFailures = 0
     }
 
     fun firstSource() {
@@ -138,8 +205,14 @@ class TVViewModel(private var tv: TV) : ViewModel() {
     }
 
     fun getVideoUrlCurrent(): String {
-        return _videoUrl.value!![_videoIndex.value!!]
+        val urls = _videoUrl.value.orEmpty()
+        val index = _videoIndex.value ?: -1
+        return urls.getOrNull(index).orEmpty()
     }
+
+    fun getVideoSourceNameCurrent(): String = videoSourceNames[getVideoUrlCurrent()].orEmpty()
+
+    fun getVideoSourceName(url: String): String = videoSourceNames[url].orEmpty()
 
     companion object {
         private const val TAG = "TVViewModel"

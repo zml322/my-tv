@@ -8,9 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.GestureDetector
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
 import android.view.WindowManager
@@ -26,7 +24,9 @@ import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity(), Request.RequestListener {
 
-    private var ready = 0
+    private val readyFragments = mutableSetOf<String>()
+    private var networkReady = false
+    private var initialContentStarted = false
     private val playerFragment = PlayerFragment()
     private val mainFragment = MainFragment()
     private val infoFragment = InfoFragment()
@@ -37,13 +37,13 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
 
     private var doubleBackToExitPressedOnce = false
 
-    private lateinit var gestureDetector: GestureDetector
-
-    private val handler = Handler()
-    private val delayHideMain: Long = 10000
+    private val handler = Handler(Looper.getMainLooper())
     private val delayHideSetting: Long = 10000
 
-    init {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        Log.i(TAG, "onCreate")
+        super.onCreate(savedInstanceState)
+
         lifecycleScope.launch(Dispatchers.IO) {
             val utilsJob = async(start = CoroutineStart.LAZY) { Utils.init() }
 
@@ -51,11 +51,6 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
 
 //            utilsJob.await()
         }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        Log.i(TAG, "onCreate")
-        super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
 
@@ -75,14 +70,6 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
                 .hide(mainFragment)
                 .commit()
         }
-        gestureDetector = GestureDetector(this, GestureListener())
-
-        // Touch gesture support for tablets/phones
-        window.decorView.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false // don't consume, let children handle too
-        }
-
         errorFragment.buttonClickListener = View.OnClickListener {
             supportFragmentManager.beginTransaction()
                 .remove(errorFragment)
@@ -99,13 +86,13 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
                     Log.i(TAG, "net ${Build.VERSION.SDK_INT}")
                     if (this@MainActivity.isNetworkConnected) {
                         Log.i(TAG, "net isNetworkConnected")
-                        ready++
+                        markNetworkReady()
                     }
                 }
             })
         } else {
             Log.i(TAG, "net ${Build.VERSION.SDK_INT}")
-            ready++
+            markNetworkReady()
         }
 
     }
@@ -152,8 +139,20 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
 //        mainFragment.prevSource()
     }
 
-    private fun nextSource() {
-//        mainFragment.nextSource()
+    fun nextSource() {
+        mainFragment.nextSource()
+    }
+
+    fun selectSource(index: Int) {
+        mainFragment.selectSource(index)
+    }
+
+    fun markStableSource(index: Int) {
+        mainFragment.markStableSource(index)
+    }
+
+    fun clearStableSource() {
+        mainFragment.clearStableSource()
     }
 
     fun switchMainFragment() {
@@ -161,17 +160,14 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
 
         if (mainFragment.isHidden) {
             transaction.show(mainFragment)
-            mainActive()
+            transaction.runOnCommit { mainFragment.revealCurrentChannel() }
+            // A touch list must stay visible while the user scrolls. It is dismissed by tapping
+            // outside the panel, choosing a channel, or pressing Back instead of a timer.
         } else {
             transaction.hide(mainFragment)
         }
 
         transaction.commit()
-    }
-
-    fun mainActive() {
-        handler.removeCallbacks(hideMain)
-        handler.postDelayed(hideMain, delayHideMain)
     }
 
     fun settingDelayHide() {
@@ -189,12 +185,6 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
         handler.removeCallbacks(hideSetting)
     }
 
-    private val hideMain = Runnable {
-        if (!mainFragment.isHidden) {
-            supportFragmentManager.beginTransaction().hide(mainFragment).commit()
-        }
-    }
-
     private fun mainFragmentIsHidden(): Boolean {
         return mainFragment.isHidden
     }
@@ -208,9 +198,40 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
     }
 
     fun fragmentReady(tag: String) {
-        ready++
-        Log.i(TAG, "ready $tag $ready ")
-        if (ready == 6) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            handler.post { fragmentReady(tag) }
+            return
+        }
+
+        if (!readyFragments.add(tag)) {
+            return
+        }
+        Log.i(TAG, "ready $tag ${readyFragments.size}")
+        startInitialContentWhenReady()
+    }
+
+    /**
+     * Connectivity callbacks run outside the UI thread.  Defer all fragment and view work to
+     * the main looper, otherwise startup can terminate with CalledFromWrongThreadException.
+     */
+    private fun markNetworkReady() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            handler.post { markNetworkReady() }
+            return
+        }
+
+        networkReady = true
+        startInitialContentWhenReady()
+    }
+
+    private fun startInitialContentWhenReady() {
+        if (initialContentStarted || !networkReady || readyFragments.size < REQUIRED_FRAGMENT_COUNT) {
+            return
+        }
+
+        initialContentStarted = true
+        Log.i(TAG, "initial content ready")
+        if (mainFragment.isAdded) {
             mainFragment.fragmentReady()
             showTime()
         }
@@ -230,58 +251,6 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
             supportFragmentManager.beginTransaction()
                 .remove(errorFragment)
                 .commit()
-        }
-    }
-
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (event != null) {
-            gestureDetector.onTouchEvent(event)
-        }
-        return super.onTouchEvent(event)
-    }
-
-    private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
-
-        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            switchMainFragment()
-            return true
-        }
-
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            showSetting()
-            return true
-        }
-
-        override fun onFling(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            velocityX: Float,
-            velocityY: Float
-        ): Boolean {
-            if (velocityY > 0) {
-                if (mainFragment.isHidden) {
-                    prev()
-                } else {
-//                    if (mainFragment.selectedPosition == 0) {
-//                        mainFragment.setSelectedPosition(
-//                            mainFragment.tvListViewModel.maxNum.size - 1,
-//                            false
-//                        )
-//                    }
-                }
-            }
-            if (velocityY < 0) {
-                if (mainFragment.isHidden) {
-                    next()
-                } else {
-//                    if (mainFragment.selectedPosition == mainFragment.tvListViewModel.maxNum.size - 1) {
-////                        mainFragment.setSelectedPosition(0, false)
-//                        hideMainFragment()
-//                        return false
-//                    }
-                }
-            }
-            return super.onFling(e1, e2, velocityX, velocityY)
         }
     }
 
@@ -356,6 +325,20 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
         Handler(Looper.getMainLooper()).postDelayed({
             doubleBackToExitPressedOnce = false
         }, 2000)
+    }
+
+    /**
+     * WebView consumes keyboard digits before Activity.onKeyDown. Intercept only channel-number
+     * keys here so remote and hardware-keyboard channel selection keeps working on official pages.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                showChannel((event.keyCode - KeyEvent.KEYCODE_0).toString())
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -498,15 +481,11 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
     override fun onResume() {
         Log.i(TAG, "onResume")
         super.onResume()
-        if (!mainFragment.isHidden) {
-            handler.postDelayed(hideMain, delayHideMain)
-        }
     }
 
     override fun onPause() {
         Log.i(TAG, "onPause")
         super.onPause()
-        handler.removeCallbacks(hideMain)
     }
 
     override fun onDestroy() {
@@ -526,5 +505,6 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
 
     private companion object {
         const val TAG = "MainActivity"
+        const val REQUIRED_FRAGMENT_COUNT = 5
     }
 }
