@@ -65,44 +65,37 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
         channelNameText = _binding!!.channelName
         setupTouchControls()
 
-        playerView?.viewTreeObserver?.addOnGlobalLayoutListener(
-            object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    playerView?.viewTreeObserver?.removeOnGlobalLayoutListener(this)
-                    playerView?.player = activity?.let {
-                        ExoPlayer.Builder(it)
-                            .build()
+        val vp = playerView ?: return _binding!!.root
+        vp.post {
+            vp.player = activity?.let {
+                ExoPlayer.Builder(it).build()
+            }
+            vp.player?.playWhenReady = true
+            vp.player?.addListener(object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    val ratio = vp.measuredWidth.toFloat() / vp.measuredHeight.toFloat()
+                    val layoutParams = vp.layoutParams
+                    if (ratio < aspectRatio) {
+                        layoutParams.height = (vp.measuredWidth / aspectRatio).toInt()
+                        vp.layoutParams = layoutParams
+                    } else if (ratio > aspectRatio) {
+                        layoutParams.width = (vp.measuredHeight * aspectRatio).toInt()
+                        vp.layoutParams = layoutParams
                     }
-                    playerView?.player?.playWhenReady = true
-                    playerView?.player?.addListener(object : Player.Listener {
-                        override fun onVideoSizeChanged(videoSize: VideoSize) {
-                            val vp = playerView ?: return
-                            val ratio = vp.measuredWidth.toFloat() / vp.measuredHeight.toFloat()
-                            val layoutParams = vp.layoutParams
-                            if (ratio < aspectRatio) {
-                                layoutParams.height =
-                                    (vp.measuredWidth / aspectRatio).toInt()
-                                vp.layoutParams = layoutParams
-                            } else if (ratio > aspectRatio) {
-                                layoutParams.width =
-                                    (vp.measuredHeight * aspectRatio).toInt()
-                                vp.layoutParams = layoutParams
-                            }
-                        }
+                }
 
-                        override fun onPlayerError(error: PlaybackException) {
-                            Log.e(TAG, "PlaybackException $error")
-                            tvViewModel?.changed()
-                        }
+                override fun onPlayerError(error: PlaybackException) {
+                    Log.e(TAG, "PlaybackException $error")
+                    tvViewModel?.changed()
+                }
 
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            if (isPlaying) {
-                                (activity as? MainActivity)?.isPlaying()
-                            }
-                        }
-                    })
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) {
+                        (activity as? MainActivity)?.isPlaying()
+                    }
                 }
             })
+        }
         (activity as MainActivity).fragmentReady("PlayerFragment")
         return _binding!!.root
     }
