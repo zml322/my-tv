@@ -13,7 +13,11 @@ class Encryptor {
 
     companion object {
         init {
-            System.loadLibrary("native")
+            try {
+                System.loadLibrary("native")
+            } catch (e: UnsatisfiedLinkError) {
+                // Native lib not available (IPTV mode doesn't need it)
+            }
         }
     }
 }
