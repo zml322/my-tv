@@ -23,6 +23,7 @@ import com.lizongying.mytv.api.YSPBtraceService
 import com.lizongying.mytv.api.YSPJceService
 import com.lizongying.mytv.api.YSPProtoService
 import com.lizongying.mytv.api.YSPTokenService
+import com.lizongying.mytv.models.ProgramType
 import com.lizongying.mytv.models.TVViewModel
 import com.lizongying.mytv.proto.Ysp.cn.yangshipin.oms.common.proto.pageModel
 import com.lizongying.mytv.proto.Ysp.cn.yangshipin.omstv.common.proto.epgProgramModel

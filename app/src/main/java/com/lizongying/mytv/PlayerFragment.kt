@@ -65,47 +65,44 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
         channelNameText = _binding!!.channelName
         setupTouchControls()
 
-        playerView?.viewTreeObserver?.addOnGlobalLayoutListener(object :
-            ViewTreeObserver.OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                playerView!!.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                playerView!!.player = activity?.let {
-                    ExoPlayer.Builder(it)
-                        .build()
-                }
-                playerView!!.player?.playWhenReady = true
-                playerView!!.player?.addListener(object : Player.Listener {
-                    override fun onVideoSizeChanged(videoSize: VideoSize) {
-                        val ratio = playerView?.measuredWidth?.div(playerView?.measuredHeight!!)
-                        if (ratio != null) {
-                            val layoutParams = playerView?.layoutParams
+        playerView?.viewTreeObserver?.addOnGlobalLayoutListener(
+            object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    playerView?.viewTreeObserver?.removeOnGlobalLayoutListener(this)
+                    playerView?.player = activity?.let {
+                        ExoPlayer.Builder(it)
+                            .build()
+                    }
+                    playerView?.player?.playWhenReady = true
+                    playerView?.player?.addListener(object : Player.Listener {
+                        override fun onVideoSizeChanged(videoSize: VideoSize) {
+                            val vp = playerView ?: return
+                            val ratio = vp.measuredWidth.toFloat() / vp.measuredHeight.toFloat()
+                            val layoutParams = vp.layoutParams
                             if (ratio < aspectRatio) {
-                                layoutParams?.height =
-                                    (playerView?.measuredWidth?.div(aspectRatio))?.toInt()
-                                playerView?.layoutParams = layoutParams
+                                layoutParams.height =
+                                    (vp.measuredWidth / aspectRatio).toInt()
+                                vp.layoutParams = layoutParams
                             } else if (ratio > aspectRatio) {
-                                layoutParams?.width =
-                                    (playerView?.measuredHeight?.times(aspectRatio))?.toInt()
-                                playerView?.layoutParams = layoutParams
+                                layoutParams.width =
+                                    (vp.measuredHeight * aspectRatio).toInt()
+                                vp.layoutParams = layoutParams
                             }
                         }
-                    }
 
-                    override fun onPlayerError(error: PlaybackException) {
-                        super.onPlayerError(error)
-                        Log.e(TAG, "PlaybackException $error")
-                        tvViewModel?.changed()
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        super.onIsPlayingChanged(isPlaying)
-                        if (isPlaying) {
-                            (activity as MainActivity).isPlaying()
+                        override fun onPlayerError(error: PlaybackException) {
+                            Log.e(TAG, "PlaybackException $error")
+                            tvViewModel?.changed()
                         }
-                    }
-                })
-            }
-        })
+
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) {
+                                (activity as? MainActivity)?.isPlaying()
+                            }
+                        }
+                    })
+                }
+            })
         (activity as MainActivity).fragmentReady("PlayerFragment")
         return _binding!!.root
     }
