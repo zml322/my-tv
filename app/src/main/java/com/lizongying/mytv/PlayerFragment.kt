@@ -1,13 +1,16 @@
 package com.lizongying.mytv
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
+import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.fragment.app.Fragment
 import androidx.media3.common.MediaItem
@@ -29,10 +32,17 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
     private var tvViewModel: TVViewModel? = null
     private val aspectRatio = 16f / 9f
 
-
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
     private var exoPlayer: SimpleExoPlayer? = null
+
+    // Touch overlay
+    private var touchOverlay: View? = null
+    private var channelNameText: TextView? = null
+    private var controlsVisible = true
+    private val hideControlsHandler = Handler(Looper.getMainLooper())
+    private val hideControlsRunnable = Runnable { hideControls() }
+    private val autoHideDelayMs = 5000L
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -49,6 +59,11 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
             _binding!!.surfaceView.visibility = View.GONE
             playerView = _binding!!.playerView
         }
+
+        // Setup touch overlay
+        touchOverlay = _binding!!.touchOverlay
+        channelNameText = _binding!!.channelName
+        setupTouchControls()
 
         playerView?.viewTreeObserver?.addOnGlobalLayoutListener(object :
             ViewTreeObserver.OnGlobalLayoutListener {
@@ -78,7 +93,6 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
 
                     override fun onPlayerError(error: PlaybackException) {
                         super.onPlayerError(error)
-
                         Log.e(TAG, "PlaybackException $error")
                         tvViewModel?.changed()
                     }
@@ -96,9 +110,72 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
         return _binding!!.root
     }
 
+    private fun setupTouchControls() {
+        val btnPrev = touchOverlay?.findViewById<View>(R.id.btn_prev)
+        val btnNext = touchOverlay?.findViewById<View>(R.id.btn_next)
+        val btnSettings = touchOverlay?.findViewById<View>(R.id.btn_settings)
+        val centerArea = touchOverlay?.findViewById<View>(R.id.center_tap_area)
+
+        btnPrev?.setOnClickListener {
+            (activity as? MainActivity)?.prev()
+            showControlsTemporarily()
+        }
+
+        btnNext?.setOnClickListener {
+            (activity as? MainActivity)?.next()
+            showControlsTemporarily()
+        }
+
+        btnSettings?.setOnClickListener {
+            // Trigger settings via MainActivity
+            val event = android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_DOWN,
+                android.view.KeyEvent.KEYCODE_MENU
+            )
+            activity?.dispatchKeyEvent(event)
+            showControlsTemporarily()
+        }
+
+        centerArea?.setOnClickListener {
+            // Tap center to show/hide channel list
+            (activity as? MainActivity)?.switchMainFragment()
+        }
+
+        // Tap on overlay to toggle controls
+        touchOverlay?.setOnClickListener {
+            toggleControls()
+        }
+
+        showControlsTemporarily()
+    }
+
+    private fun toggleControls() {
+        if (controlsVisible) {
+            hideControls()
+        } else {
+            showControlsTemporarily()
+        }
+    }
+
+    private fun showControlsTemporarily() {
+        touchOverlay?.visibility = View.VISIBLE
+        controlsVisible = true
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        hideControlsHandler.postDelayed(hideControlsRunnable, autoHideDelayMs)
+    }
+
+    private fun hideControls() {
+        touchOverlay?.visibility = View.GONE
+        controlsVisible = false
+    }
+
     @OptIn(UnstableApi::class)
     fun play(tvViewModel: TVViewModel) {
         this.tvViewModel = tvViewModel
+        // Update channel name display
+        channelNameText?.text = tvViewModel.getTV().title
+        showControlsTemporarily()
+
         playerView?.player?.run {
             setMediaItem(MediaItem.fromUri(tvViewModel.getVideoUrlCurrent()))
             prepare()
@@ -127,10 +204,12 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
     override fun onResume() {
         Log.i(TAG, "onResume")
         super.onResume()
+        showControlsTemporarily()
     }
 
     override fun onPause() {
         super.onPause()
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
         if (playerView != null && playerView!!.player?.isPlaying == true) {
             playerView!!.player?.stop()
         }
@@ -141,6 +220,7 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         super.onDestroy()
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
         if (playerView != null) {
             playerView!!.player?.release()
         }
@@ -153,7 +233,7 @@ class PlayerFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     companion object {
-        private const val TAG = "PlaybackVideoFragment"
+        private const val TAG = "PlayerFragment"
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {

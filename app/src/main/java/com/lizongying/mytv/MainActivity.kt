@@ -77,6 +77,12 @@ class MainActivity : FragmentActivity(), Request.RequestListener {
         }
         gestureDetector = GestureDetector(this, GestureListener())
 
+        // Touch gesture support for tablets/phones
+        window.decorView.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            false // don't consume, let children handle too
+        }
+
         errorFragment.buttonClickListener = View.OnClickListener {
             supportFragmentManager.beginTransaction()
                 .remove(errorFragment)
